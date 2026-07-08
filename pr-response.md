@@ -262,8 +262,20 @@ Known limitation (from review): `add_to_watchlist` validates `film_id` but not
    ```
 4. Add the same film again → **409** (deduplication).
 5. Add a nonexistent film id → **404**; omit `film_id` → **400**.
-6. View the watchlist (newest first, each entry `"public": false`):
+6. Add with explicit visibility (stretch) → **201**, response shows `"public": true`:
+   ```
+   curl -X POST http://127.0.0.1:5000/watchlist/<USER_ID>/add \
+        -H "Content-Type: application/json" \
+        -d '{"film_id":"<FILM_ID>","public":true}'
+   ```
+   (Remove first if the film is already present — see step 8.)
+7. View the watchlist (newest first, each entry has a `public` flag):
    ```
    curl http://127.0.0.1:5000/watchlist/<USER_ID>
    ```
-7. Run the test suite: `pytest tests/ -v` → 8 passing.
+8. Remove from watchlist (stretch) → **200**; repeat → **404**:
+   ```
+   curl -X DELETE http://127.0.0.1:5000/watchlist/<USER_ID>/remove \
+        -H "Content-Type: application/json" -d '{"film_id":"<FILM_ID>"}'
+   ```
+9. Run the test suite: `pytest tests/ -v` → 12 passing.
