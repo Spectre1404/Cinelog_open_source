@@ -9,8 +9,10 @@ from app import create_app, db
 from models import User, Film, WatchlistEntry
 from services.watchlist_service import (
     add_to_watchlist,
+    remove_from_watchlist,
     get_watchlist,
     AlreadyInWatchlistError,
+    NotInWatchlistError,
 )
 from services.collection_service import FilmNotFoundError
 
@@ -130,3 +132,60 @@ def test_get_watchlist_returns_newest_first(app, sample_user):
         # Blade Runner was added later, so it should come first
         assert titles[0] == "Blade Runner"
         assert titles[1] == "Alien"
+
+
+# ── Remove (stretch) ─────────────────────────────────────────────────────────
+
+def test_remove_from_watchlist_deletes_entry(app, sample_user, sample_film):
+    """Removing a film that is on the watchlist should delete the entry."""
+    with app.app_context():
+        add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+        result = remove_from_watchlist(user_id=sample_user, film_id=sample_film)
+
+        assert result is True
+        remaining = WatchlistEntry.query.filter_by(
+            user_id=sample_user, film_id=sample_film
+        ).count()
+        assert remaining == 0
+
+
+def test_remove_from_watchlist_not_present_raises(app, sample_user, sample_film):
+    """Removing a film that isn't on the watchlist should raise NotInWatchlistError."""
+    with app.app_context():
+        with pytest.raises(NotInWatchlistError):
+            remove_from_watchlist(user_id=sample_user, film_id=sample_film)
+
+
+# ── Explicit visibility (stretch) ────────────────────────────────────────────
+
+def test_add_to_watchlist_respects_public_flag(app, sample_user, sample_film):
+    """The public parameter should override the private-by-default visibility."""
+    with app.app_context():
+        entry = add_to_watchlist(
+            user_id=sample_user, film_id=sample_film, public=True
+        )
+        assert entry.public is True
+
+
+# ── Second additional test: per-user dedup scoping (my choice) ────────────────
+
+def test_same_film_on_two_users_watchlists(app, sample_user, sample_film):
+    """
+    Deduplication is scoped per user: two different users must each be able to
+    add the same film. A naive dedup keyed only on film_id would wrongly block
+    the second user, so this guards that the unique constraint is on
+    (user_id, film_id), not film_id alone.
+    """
+    with app.app_context():
+        other_user = User(username="other", email="other@example.com")
+        db.session.add(other_user)
+        db.session.commit()
+        other_user_id = other_user.id
+
+        add_to_watchlist(user_id=sample_user, film_id=sample_film)
+        # Same film, different user — should succeed, not raise.
+        add_to_watchlist(user_id=other_user_id, film_id=sample_film)
+
+        assert len(get_watchlist(sample_user)) == 1
+        assert len(get_watchlist(other_user_id)) == 1
