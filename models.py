@@ -82,7 +82,9 @@ class WatchlistEntry(db.Model):
     # film_id is a UUID (String) to match the post-refactor Film.id on main.
     film_id = db.Column(db.String(36), db.ForeignKey("film.id"), nullable=False)
     date_added = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    public = db.Column(db.Boolean, default=True)
+    # Private by default: users opt in to sharing rather than exposing lists
+    # implicitly (privacy-by-default). See PR description for the rationale.
+    public = db.Column(db.Boolean, default=False)
 
     # Enforce dedup at the DB level: one entry per (user, film) on a watchlist.
     __table_args__ = (
