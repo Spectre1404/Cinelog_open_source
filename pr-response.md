@@ -149,10 +149,52 @@ updated the service and route docstrings from integer to UUID. This is commit
 - History is linear with no merge commits: `git log --merges main..HEAD` is
   empty. (I also kept a `backup/pre-rebase-watchlist` branch as a safety net.)
 
+## Stretch Features
+
+### Stretch 1 — `remove_from_watchlist()`
+**What I did:**
+Added `remove_from_watchlist(user_id, film_id)` in
+`services/watchlist_service.py`, following the collection feature's remove
+pattern: it looks up the `(user_id, film_id)` entry, raises a new
+`NotInWatchlistError` if absent, otherwise deletes it and returns `True`. Added a
+`DELETE /watchlist/<user_id>/remove` route returning 200 on success and 404 when
+the film isn't on the watchlist.
+
+**How I verified:**
+`test_remove_from_watchlist_deletes_entry` (add then remove leaves zero rows) and
+`test_remove_from_watchlist_not_present_raises` (raises `NotInWatchlistError`).
+
+### Stretch 2 — Second test (my choice of edge case)
+**What I did:**
+Added `test_same_film_on_two_users_watchlists`: two different users each add the
+same film, and both adds succeed with one entry per user.
+
+**Why I chose it:**
+Deduplication is only correct if it is scoped *per user*. A naive implementation
+keyed on `film_id` alone would wrongly reject the second user once the first has
+saved the film. This test guards that the uniqueness rule is on
+`(user_id, film_id)` — a subtle correctness property that none of the review
+comments exercised.
+
+### Stretch 3 — Visibility toggle
+**What I did:**
+Added an optional `public` parameter to `add_to_watchlist()` and to the
+`POST /watchlist/<user_id>/add` endpoint (`{"film_id": ..., "public": true}`),
+so callers can set visibility explicitly. It defaults to `False`, preserving the
+private-by-default decision (Comment 4) when the field is omitted.
+
+**How I verified:**
+`test_add_to_watchlist_respects_public_flag` confirms `public=True` overrides the
+default. Full suite: 12 passing.
+
 ## Commit History
 `git log --oneline` (feature/watchlist, rebased on main — no merge commits):
 
 ```
+docs: document stretch features in pr-response.md
+test: add remove, visibility, and cross-user dedup tests
+feat: allow setting watchlist visibility on add
+feat: add remove_from_watchlist service and endpoint
 docs: add pr-response.md documenting review responses
 feat: default new watchlists to private
 test: add watchlist service tests
@@ -170,9 +212,13 @@ feat: add watchlist service and add-to-watchlist endpoint
 Adds a per-user **watchlist** — films a user wants to watch later — alongside
 the existing collection feature. Endpoints:
 - `GET /watchlist/<user_id>` — return the user's watchlist, newest first.
-- `POST /watchlist/<user_id>/add` — add a film with body `{"film_id": "<uuid>"}`.
+- `POST /watchlist/<user_id>/add` — add a film with body
+  `{"film_id": "<uuid>", "public": false}` (`public` optional, default false).
   Returns **201** on success, **409** if the film is already on the watchlist,
   **404** if the film doesn't exist, **400** if `film_id` is missing.
+- `DELETE /watchlist/<user_id>/remove` — remove a film with body
+  `{"film_id": "<uuid>"}`. Returns **200** on success, **404** if the film isn't
+  on the watchlist. *(stretch)*
 
 ### Design decisions
 1. **Default visibility: private (`public=False`).** New watchlists are private;
