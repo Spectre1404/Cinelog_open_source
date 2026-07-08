@@ -50,7 +50,11 @@ def add_to_watchlist(user_id, film_id):
 
 def get_watchlist(user_id):
     """
-    Return all films on a user's watchlist.
+    Return all films on a user's watchlist, sorted by date added (newest first).
+
+    Sort order decision (per PR review): watchlists default to "date added"
+    descending rather than alphabetical, since users most want to see what
+    they recently saved. This also matches get_collection's ordering.
 
     Args:
         user_id (str): UUID of the user.
@@ -61,8 +65,7 @@ def get_watchlist(user_id):
     entries = (
         WatchlistEntry.query
         .filter_by(user_id=user_id)
-        .join(Film)
-        .order_by(Film.title.asc())
+        .order_by(WatchlistEntry.date_added.desc())
         .all()
     )
 
