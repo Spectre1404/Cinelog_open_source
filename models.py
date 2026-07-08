@@ -84,6 +84,11 @@ class WatchlistEntry(db.Model):
     date_added = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     public = db.Column(db.Boolean, default=True)
 
+    # Enforce dedup at the DB level: one entry per (user, film) on a watchlist.
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "film_id", name="unique_user_film_watchlist"),
+    )
+
     def to_dict(self):
         return {
             "id": self.id,
